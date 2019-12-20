@@ -42,7 +42,7 @@ If you need any help in executing the SQL script, you can find a Quickstart here
 
 ## Run sample locally
 
-Make sure you have Python 3.7 installed on your machine. Clone this repo in a directory on our computer and than create a [virtual environment](https://www.youtube.com/watch?v=_eczHOiFMZA&list=PLlrxD0HtieHhS8VzuMCfQD4uJ9yne1mE6&index=34). For example:
+Make sure you have Python 3.7 installed on your machine. Clone this repo in a directory on our computer and then create a [virtual environment](https://www.youtube.com/watch?v=_eczHOiFMZA&list=PLlrxD0HtieHhS8VzuMCfQD4uJ9yne1mE6&index=34). For example:
 
 ```bash
 virtualenv venv --python C:\Python37\
