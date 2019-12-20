@@ -24,7 +24,7 @@ az webapp create \
     -g $resourceGroup \
     -n $appName \
     --plan "linux-plan" \
-    --runtime "Python|3.7" \
+    --runtime "PYTHON|3.7" \
     --deployment-source-url $gitSource \
     --deployment-source-branch master
 
