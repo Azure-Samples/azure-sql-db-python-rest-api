@@ -8,7 +8,7 @@ appName="azure-sql-db-python-rest-api"
 location="WestUS2" 
 
 # Change this if you are using your own github repository
-gitSource="https://github.com/yorek/azure-sql-db-python-rest-api.git"
+gitSource="https://github.com/Azure-Samples/azure-sql-db-python-rest-api.git"
 
 az group create \
     -n $resourceGroup \
