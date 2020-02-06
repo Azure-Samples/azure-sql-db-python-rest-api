@@ -147,6 +147,12 @@ az webapp config connection-string set \
 
 Just make sure you correctly set `$appName` and `$resourceGroup` to match your environment and also that the variable `$SQLAZURECONNSTR_WWIF` as also been set, as mentioned in section "Run sample locally". An example of a full script that deploy the REST API is available here: `azure-deploy.sh`.
 
+Please note that connection string are accessible as environment variables from Python when running on Azure, *but they are prefixed* as documented here:
+
+https://docs.microsoft.com/en-us/azure/app-service/configure-common#connection-strings
+
+That's why the Python code in the sample look for `SQLAZURECONNSTR_WWIF` but the Shell script write the `WWIF` connection string name.
+
 ## Learn more
 
 If you're new to Python and want to learn more, there is a full free Python curse here:
