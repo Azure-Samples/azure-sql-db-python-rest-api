@@ -13,12 +13,13 @@ api = Api(app)
 parser = reqparse.RequestParser()
 parser.add_argument('customer')
 
-# Create connection to Azure SQL
-conn = pyodbc.connect(os.environ['SQLAZURECONNSTR_WWIF'])
+# Store connection string
+conn_str = os.environ['SQLAZURECONNSTR_WWIF']
 
 class Queryable(Resource):
     def executeQueryJson(self, verb, payload=None):
         result = {}        
+        conn = pyodbc.connect(conn_str)
         cursor = conn.cursor()    
         entity = type(self).__name__.lower()
         procedure = f"web.{verb}_{entity}"

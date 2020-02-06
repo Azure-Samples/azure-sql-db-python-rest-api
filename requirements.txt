@@ -1,3 +1,4 @@
 pyodbc
 flask
 flask-restful
+applicationinsights
