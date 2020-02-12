@@ -4,7 +4,7 @@ from flask import Flask
 from flask_restful import reqparse, abort, Api, Resource
 import json
 import pyodbc
-import threading
+from threading import Lock
 
 # Initialize Flask
 app = Flask(__name__)
@@ -21,9 +21,15 @@ for c in range(10):
     conn = pyodbc.connect(os.environ['SQLAZURECONNSTR_WWIF'])
     conn_list.append(conn)
 
+lock = Lock()
+
 def getConnection():
     global conn_index
+    
+    lock.acquire()
     conn_index += 1
+    lock.release()
+    
     if conn_index > 9:
         conn_index = 0        
     return conn_list[conn_index]
