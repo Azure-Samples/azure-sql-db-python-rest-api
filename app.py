@@ -4,6 +4,7 @@ from flask import Flask
 from flask_restful import reqparse, abort, Api, Resource
 import json
 import pyodbc
+import threading
 
 # Initialize Flask
 app = Flask(__name__)
@@ -13,10 +14,24 @@ api = Api(app)
 parser = reqparse.RequestParser()
 parser.add_argument('customer')
 
+conn_index = 0
+conn_list = list()
+
+for c in range(10):
+    conn = pyodbc.connect(os.environ['SQLAZURECONNSTR_WWIF'])
+    conn_list.append(conn)
+
+def getConnection():
+    global conn_index
+    conn_index += 1
+    if conn_index > 9:
+        conn_index = 0        
+    return conn_list[conn_index]
+
 class Queryable(Resource):
     def executeQueryJson(self, verb, payload=None):
         result = {}        
-        conn = pyodbc.connect(os.environ['SQLAZURECONNSTR_WWIF'])
+        conn = getConnection()
         cursor = conn.cursor()    
         entity = type(self).__name__.lower()
         procedure = f"web.{verb}_{entity}"
