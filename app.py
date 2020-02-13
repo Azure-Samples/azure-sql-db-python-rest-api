@@ -1,16 +1,16 @@
 import sys
 import os
-from flask import Flask
-from flask_restful import reqparse, abort, Api, Resource
 import json
 import pyodbc
 import socket
+from flask import Flask
+from flask_restful import reqparse, abort, Api, Resource
 from threading import Lock
+from tenacity import *
 from opencensus.ext.azure.trace_exporter import AzureExporter
 from opencensus.ext.flask.flask_middleware import FlaskMiddleware
 from opencensus.trace.samplers import ProbabilitySampler
-
-pyodbc.pooling=False
+import logging
 
 # Initialize Flask
 app = Flask(__name__)
@@ -27,6 +27,7 @@ api = Api(app)
 parser = reqparse.RequestParser()
 parser.add_argument('customer')
 
+
 # Implement manual connection pooling
 class ConnectionManager(object):    
     __instance = None
@@ -39,50 +40,81 @@ class ConnectionManager(object):
             ConnectionManager.__instance = object.__new__(cls)        
         return ConnectionManager.__instance    
 
-    def __getConnection(self, conn_index):
-        application_name = ";APP={0}-{1}".format(socket.gethostname(), conn_index)        
-        conn = pyodbc.connect(os.environ['SQLAZURECONNSTR_WWIF'] + application_name)
+    def is_retriable(self, value):
+        RETRY_CODES = [  
+            8001,   
+            42000,       
+            1204,   # The instance of the SQL Server Database Engine cannot obtain a LOCK resource at this time. Rerun your statement when there are fewer active users. Ask the database administrator to check the lock and memory configuration for this instance, or to check for long-running transactions.
+            1205,   # Transaction (Process ID) was deadlocked on resources with another process and has been chosen as the deadlock victim. Rerun the transaction
+            1222,   # Lock request time out period exceeded.
+            49918,  # Cannot process request. Not enough resources to process request.
+            49919,  # Cannot process create or update request. Too many create or update operations in progress for subscription "%ld".
+            49920,  # Cannot process request. Too many operations in progress for subscription "%ld".
+            4060,   # Cannot open database "%.*ls" requested by the login. The login failed.
+            4221,   # Login to read-secondary failed due to long wait on 'HADR_DATABASE_WAIT_FOR_TRANSITION_TO_VERSIONING'. The replica is not available for login because row versions are missing for transactions that were in-flight when the replica was recycled. The issue can be resolved by rolling back or committing the active transactions on the primary replica. Occurrences of this condition can be minimized by avoiding long write transactions on the primary.
+
+            40143,  # The service has encountered an error processing your request. Please try again.
+            40613,  # Database '%.*ls' on server '%.*ls' is not currently available. Please retry the connection later. If the problem persists, contact customer support, and provide them the session tracing ID of '%.*ls'.
+            40501,  # The service is currently busy. Retry the request after 10 seconds. Incident ID: %ls. Code: %d.
+            40540,  # The service has encountered an error processing your request. Please try again.
+            40197,  # The service has encountered an error processing your request. Please try again. Error code %d.
+            10929,  # Resource ID: %d. The %s minimum guarantee is %d, maximum limit is %d and the current usage for the database is %d. However, the server is currently too busy to support requests greater than %d for this database. For more information, see http://go.microsoft.com/fwlink/?LinkId=267637. Otherwise, please try again later.
+            10928,  # Resource ID: %d. The %s limit for the database is %d and has been reached. For more information, see http://go.microsoft.com/fwlink/?LinkId=267637.
+            10060,  # An error has occurred while establishing a connection to the server. When connecting to SQL Server, this failure may be caused by the fact that under the default settings SQL Server does not allow remote connections. (provider: TCP Provider, error: 0 - A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond.) (Microsoft SQL Server, Error: 10060)
+            10054,  # The data value for one or more columns overflowed the type used by the provider.
+            10053,  # Could not convert the data value due to reasons other than sign mismatch or overflow.
+            233,    # A connection was successfully established with the server, but then an error occurred during the login process. (provider: Shared Memory Provider, error: 0 - No process is on the other end of the pipe.) (Microsoft SQL Server, Error: 233)
+            64,
+            20,
+            0
+            ]
+        result = value in RETRY_CODES
+        return result
+    
+    @retry(stop=stop_after_attempt(3), wait=wait_fixed(10), after=after_log(app.logger, logging.DEBUG))
+    def __createConnection(self, idx):        
+        try:            
+            application_name = ";APP={0}-{1}".format(socket.gethostname(), idx)  
+            conn = pyodbc.connect(os.environ['SQLAZURECONNSTR_WWIF'] + application_name)                  
+        except Exception as e:
+            if isinstance(e,pyodbc.ProgrammingError) or isinstance(e,pyodbc.OperationalError):
+                if self.is_retriable(int(e.args[0])):
+                    raise
+
         return conn
 
-
-    def getCursor(self):
+    def __getConnection(self):
         self.__lock.acquire()
-        self.__conn_index += 1    
+        idx = self.__conn_index + 1
         
-        if self.__conn_index > 9:
-            self.__conn_index = 0        
-
-        if not self.__conn_index in self.__conn_dict.keys():
-            new_conn = self.__getConnection(self.__conn_index)
-            self.__conn_dict.update( { self.__conn_index: new_conn } )
-
-        conn = self.__conn_dict[self.__conn_index]
+        if idx > 9:
+            idx = 0                      
         
-        try:
-            cursor = conn.cursor()
-        except e:
-            if e.__class__ == pyodbc.ProgrammingError:        
-                conn == self.__getConnection(self.__conn_index)
-                self.__conn_dict[self.__conn_index] = conn
-                cursor = conn.cursor()
-
+        if not idx in self.__conn_dict.keys():
+            application_name = ";APP={0}-{1}".format(socket.gethostname(), idx)  
+            conn = pyodbc.connect(os.environ['SQLAZURECONNSTR_WWIF'] + application_name)                  
+            self.__conn_dict.update( { idx: conn } )
+        else:
+            conn = self.__conn_dict[idx]
+        
+        self.__conn_index = idx
         self.__lock.release()                
 
-        return (self.__conn_index, cursor)
+        return (idx, conn)   
 
-    def removeConnection(self, idx):
+    def __removeConnection(self, idx):
         self.__lock.acquire()
         if idx in self.__conn_dict.keys():
             del(self.__conn_dict[idx])
         self.__lock.release()    
 
-class Queryable(Resource):
-    def executeQueryJson(self, verb, payload=None):
+    @retry(stop=stop_after_attempt(3), wait=wait_fixed(10), after=after_log(app.logger, logging.DEBUG))
+    def executeQueryJSON(self, procedure, payload=None):
         result = {}  
-        (idx, cursor) = ConnectionManager().getCursor()        
-        entity = type(self).__name__.lower()
-        procedure = f"web.{verb}_{entity}"
+        (idx, conn) = self.__getConnection()
         try:
+            cursor = conn.cursor()
+
             if payload:
                 cursor.execute(f"EXEC {procedure} ?", json.dumps(payload))
             else:
@@ -96,11 +128,20 @@ class Queryable(Resource):
                 result = {}
 
             cursor.commit()    
-        except:                        
-            ConnectionManager().removeConnection(idx)            
-        finally:    
-            cursor.close()
+        except Exception as e:
+            self.__removeConnection(idx)
+            if isinstance(e,pyodbc.ProgrammingError) or isinstance(e,pyodbc.OperationalError):
+                if self.is_retriable(int(e.args[0])):
+                    raise                        
 
+        return result
+
+class Queryable(Resource):
+    def executeQueryJson(self, verb, payload=None):
+        result = {}  
+        entity = type(self).__name__.lower()
+        procedure = f"web.{verb}_{entity}"
+        result = ConnectionManager().executeQueryJSON(procedure, payload)
         return result
 
 # Customer Class

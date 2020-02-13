@@ -3,3 +3,5 @@ flask
 flask-restful
 opencensus-ext-azure
 opencensus-ext-flask
+tenacity
+python-dotenv
