@@ -4,6 +4,7 @@ from flask import Flask
 from flask_restful import reqparse, abort, Api, Resource
 import json
 import pyodbc
+import socket
 from threading import Lock
 
 # Initialize Flask
@@ -14,30 +15,38 @@ api = Api(app)
 parser = reqparse.RequestParser()
 parser.add_argument('customer')
 
-conn_index = 0
-conn_list = list()
+class ConnectionManager(object):    
+    __instance = None
+    __conn_index = 0
+    __conn_dict = {}
+    __lock = Lock()
 
-for c in range(10):
-    conn = pyodbc.connect(os.environ['SQLAZURECONNSTR_WWIF'])
-    conn_list.append(conn)
+    def __new__(cls):
+        if ConnectionManager.__instance is None:
+            ConnectionManager.__instance = object.__new__(cls)        
+        return ConnectionManager.__instance    
 
-lock = Lock()
+    def getConnection(self):
+        self.__lock.acquire()
+        self.__conn_index += 1    
+        
+        if self.__conn_index > 9:
+            self.__conn_index = 0        
 
-def getConnection():
-    global conn_index
-    
-    lock.acquire()
-    conn_index += 1
-    lock.release()
-    
-    if conn_index > 9:
-        conn_index = 0        
-    return conn_list[conn_index]
+        if not self.__conn_index in self.__conn_dict.keys():
+            application_name = ";APP={0}-{1}".format(socket.gethostname(), self.__conn_index)        
+            conn = pyodbc.connect(os.environ['SQLAZURECONNSTR_WWIF'] + application_name)
+            self.__conn_dict.update( { self.__conn_index: conn } )
+
+        result = self.__conn_dict[self.__conn_index]
+        self.__lock.release()                
+
+        return result
 
 class Queryable(Resource):
     def executeQueryJson(self, verb, payload=None):
-        result = {}        
-        conn = getConnection()
+        result = {}  
+        conn = ConnectionManager().getConnection()
         cursor = conn.cursor()    
         entity = type(self).__name__.lower()
         procedure = f"web.{verb}_{entity}"
