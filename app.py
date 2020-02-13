@@ -85,11 +85,11 @@ class ConnectionManager(object):
 
     def __getConnection(self):
         self.__lock.acquire()
-        idx = self.__conn_index + 1
-        
-        if idx > 9:
-            idx = 0                      
-        
+        idx = self.__conn_index + 1        
+        if idx > 9: idx = 0                              
+        self.__conn_index = idx
+        self.__lock.release()                
+
         if not idx in self.__conn_dict.keys():
             application_name = ";APP={0}-{1}".format(socket.gethostname(), idx)  
             conn = pyodbc.connect(os.environ['SQLAZURECONNSTR_WWIF'] + application_name)                  
@@ -97,9 +97,6 @@ class ConnectionManager(object):
         else:
             conn = self.__conn_dict[idx]
         
-        self.__conn_index = idx
-        self.__lock.release()                
-
         return (idx, conn)   
 
     def __removeConnection(self, idx):
