@@ -71,18 +71,6 @@ class ConnectionManager(object):
         result = value in RETRY_CODES
         return result
     
-    @retry(stop=stop_after_attempt(3), wait=wait_fixed(10), after=after_log(app.logger, logging.DEBUG))
-    def __createConnection(self, idx):        
-        try:            
-            application_name = ";APP={0}-{1}".format(socket.gethostname(), idx)  
-            conn = pyodbc.connect(os.environ['SQLAZURECONNSTR_WWIF'] + application_name)                  
-        except Exception as e:
-            if isinstance(e,pyodbc.ProgrammingError) or isinstance(e,pyodbc.OperationalError):
-                if self.is_retriable(int(e.args[0])):
-                    raise
-
-        return conn
-
     def __getConnection(self):
         self.__lock.acquire()
         idx = self.__conn_index + 1        
