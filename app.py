@@ -6,15 +6,26 @@ import json
 import pyodbc
 import socket
 from threading import Lock
+from opencensus.ext.azure.trace_exporter import AzureExporter
+from opencensus.ext.flask.flask_middleware import FlaskMiddleware
+from opencensus.trace.samplers import ProbabilitySampler
 
 # Initialize Flask
 app = Flask(__name__)
+
+# Setup Azure Monitor
+middleware = FlaskMiddleware(
+    app,
+    exporter=AzureExporter(connection_string="InstrumentationKey={0}".format(os.environ['APPINSIGHTS_KEY'])),
+    sampler=ProbabilitySampler(rate=1.0),
+)
 
 # Setup Flask Restful framework
 api = Api(app)
 parser = reqparse.RequestParser()
 parser.add_argument('customer')
 
+# Implement manual connection pooling
 class ConnectionManager(object):    
     __instance = None
     __conn_index = 0

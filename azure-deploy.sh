@@ -30,6 +30,16 @@ az appservice plan create \
     --sku B1 \
     --is-linux
 
+echo "Creating Application Insight..."
+az resource create \
+    -g $resourceGroup \
+    -n $appName-ai \
+    --resource-type "Microsoft.Insights/components" \
+    --properties '{"Application_Type":"web"}'
+
+echo "Reading Application Insight Key..."
+aikey=`az resource show -g $resourceGroup -n $appName-ai --resource-type "Microsoft.Insights/components" --query properties.InstrumentationKey -o tsv`
+
 echo "Creating Web Application...";
 az webapp create \
     -g $resourceGroup \
@@ -45,3 +55,11 @@ az webapp config connection-string set \
     -n $appName \
     --settings WWIF="$SQLAZURECONNSTR_WWIF" \
     --connection-string-type=SQLAzure
+
+echo "Configuring Application Insights...";
+az webapp config appsettings set \
+    -g $resourceGroup \
+    -n $appName \
+    --settings APPINSIGHTS_KEY="$aikey"
+
+echo "Done."

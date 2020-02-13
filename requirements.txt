@@ -1,4 +1,4 @@
 pyodbc
 flask
 flask-restful
-applicationinsights
+opencensus-ext-azure
