@@ -10,6 +10,8 @@ from opencensus.ext.azure.trace_exporter import AzureExporter
 from opencensus.ext.flask.flask_middleware import FlaskMiddleware
 from opencensus.trace.samplers import ProbabilitySampler
 
+pyodbc.pooling=False
+
 # Initialize Flask
 app = Flask(__name__)
 
@@ -25,32 +27,79 @@ api = Api(app)
 parser = reqparse.RequestParser()
 parser.add_argument('customer')
 
+# Implement manual connection pooling
+class ConnectionManager(object):    
+    __instance = None
+    __conn_index = 0
+    __conn_dict = {}
+    __lock = Lock()
+
+    def __new__(cls):
+        if ConnectionManager.__instance is None:
+            ConnectionManager.__instance = object.__new__(cls)        
+        return ConnectionManager.__instance    
+
+    def __getConnection(self, conn_index):
+        application_name = ";APP={0}-{1}".format(socket.gethostname(), conn_index)        
+        conn = pyodbc.connect(os.environ['SQLAZURECONNSTR_WWIF'] + application_name)
+        return conn
+
+
+    def getCursor(self):
+        self.__lock.acquire()
+        self.__conn_index += 1    
+        
+        if self.__conn_index > 9:
+            self.__conn_index = 0        
+
+        if not self.__conn_index in self.__conn_dict.keys():
+            new_conn = self.__getConnection(self.__conn_index)
+            self.__conn_dict.update( { self.__conn_index: new_conn } )
+
+        conn = self.__conn_dict[self.__conn_index]
+        
+        try:
+            cursor = conn.cursor()
+        except e:
+            if e.__class__ == pyodbc.ProgrammingError:        
+                conn == self.__getConnection(self.__conn_index)
+                self.__conn_dict[self.__conn_index] = conn
+                cursor = conn.cursor()
+
+        self.__lock.release()                
+
+        return (self.__conn_index, cursor)
+
+    def removeConnection(self, idx):
+        self.__lock.acquire()
+        if idx in self.__conn_dict.keys():
+            del(self.__conn_dict[idx])
+        self.__lock.release()    
+
 class Queryable(Resource):
     def executeQueryJson(self, verb, payload=None):
         result = {}  
-        with pyodbc.connect(os.environ['SQLAZURECONNSTR_WWIF']) as conn:
-            cursor = conn.cursor()    
-            entity = type(self).__name__.lower()
-            procedure = f"web.{verb}_{entity}"
-            try:
-                if payload:
-                    cursor.execute(f"EXEC {procedure} ?", json.dumps(payload))
-                else:
-                    cursor.execute(f"EXEC {procedure}")
+        (idx, cursor) = ConnectionManager().getCursor()        
+        entity = type(self).__name__.lower()
+        procedure = f"web.{verb}_{entity}"
+        try:
+            if payload:
+                cursor.execute(f"EXEC {procedure} ?", json.dumps(payload))
+            else:
+                cursor.execute(f"EXEC {procedure}")
 
-                result = cursor.fetchone()
+            result = cursor.fetchone()
 
-                if result:
-                    result = json.loads(result[0])                           
-                else:
-                    result = {}
+            if result:
+                result = json.loads(result[0])                           
+            else:
+                result = {}
 
-                cursor.commit()    
-            except:            
-                conn.close()
-                raise
-            finally:    
-                cursor.close()
+            cursor.commit()    
+        except:                        
+            ConnectionManager().removeConnection(idx)            
+        finally:    
+            cursor.close()
 
         return result
 
