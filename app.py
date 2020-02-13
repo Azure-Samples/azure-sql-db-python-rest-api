@@ -81,9 +81,13 @@ class ConnectionManager(object):
         if not idx in self.__conn_dict.keys():
             application_name = ";APP={0}-{1}".format(socket.gethostname(), idx)  
             conn = pyodbc.connect(os.environ['SQLAZURECONNSTR_WWIF'] + application_name)                  
+            self.__lock.acquire()
             self.__conn_dict.update( { idx: conn } )
+            self.__lock.release() 
         else:
+            self.__lock.acquire()
             conn = self.__conn_dict[idx]
+            self.__lock.release() 
         
         return (idx, conn)   
 
@@ -115,7 +119,7 @@ class ConnectionManager(object):
             cursor.commit()    
         except Exception as e:
             self.__removeConnection(idx)
-            if isinstance(e,pyodbc.ProgrammingError) or isinstance(e,pyodbc.OperationalError):
+            if isinstance(e, pyodbc.ProgrammingError) or isinstance(e, pyodbc.OperationalError):
                 if self.is_retriable(int(e.args[0])):
                     raise                        
 
