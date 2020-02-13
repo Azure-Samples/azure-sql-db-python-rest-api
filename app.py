@@ -25,61 +25,32 @@ api = Api(app)
 parser = reqparse.RequestParser()
 parser.add_argument('customer')
 
-# Implement manual connection pooling
-class ConnectionManager(object):    
-    __instance = None
-    __conn_index = 0
-    __conn_dict = {}
-    __lock = Lock()
-
-    def __new__(cls):
-        if ConnectionManager.__instance is None:
-            ConnectionManager.__instance = object.__new__(cls)        
-        return ConnectionManager.__instance    
-
-    def getConnection(self):
-        self.__lock.acquire()
-        self.__conn_index += 1    
-        
-        if self.__conn_index > 9:
-            self.__conn_index = 0        
-
-        if not self.__conn_index in self.__conn_dict.keys():
-            application_name = ";APP={0}-{1}".format(socket.gethostname(), self.__conn_index)        
-            conn = pyodbc.connect(os.environ['SQLAZURECONNSTR_WWIF'] + application_name)
-            self.__conn_dict.update( { self.__conn_index: conn } )
-
-        result = self.__conn_dict[self.__conn_index]
-        self.__lock.release()                
-
-        return result
-
 class Queryable(Resource):
     def executeQueryJson(self, verb, payload=None):
         result = {}  
-        conn = ConnectionManager().getConnection()
-        cursor = conn.cursor()    
-        entity = type(self).__name__.lower()
-        procedure = f"web.{verb}_{entity}"
-        try:
-            if payload:
-                cursor.execute(f"EXEC {procedure} ?", json.dumps(payload))
-            else:
-                cursor.execute(f"EXEC {procedure}")
+        with pyodbc.connect(os.environ['SQLAZURECONNSTR_WWIF']) as conn:
+            cursor = conn.cursor()    
+            entity = type(self).__name__.lower()
+            procedure = f"web.{verb}_{entity}"
+            try:
+                if payload:
+                    cursor.execute(f"EXEC {procedure} ?", json.dumps(payload))
+                else:
+                    cursor.execute(f"EXEC {procedure}")
 
-            result = cursor.fetchone()
+                result = cursor.fetchone()
 
-            if result:
-                result = json.loads(result[0])                           
-            else:
-                result = {}
+                if result:
+                    result = json.loads(result[0])                           
+                else:
+                    result = {}
 
-            cursor.commit()    
-        except:
-            print("Unexpected error:", sys.exc_info()[0])
-            raise
-        finally:    
-            cursor.close()
+                cursor.commit()    
+            except:            
+                conn.close()
+                raise
+            finally:    
+                cursor.close()
 
         return result
 
