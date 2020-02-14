@@ -56,7 +56,7 @@ class ConnectionManager(object):
             conn = self.__getConnection()
 
             cursor = conn.cursor()
-
+            
             if payload:
                 cursor.execute(f"EXEC {procedure} ?", json.dumps(payload))
             else:
@@ -72,14 +72,16 @@ class ConnectionManager(object):
             cursor.commit()    
         except pyodbc.Error as e:            
             if isinstance(e, pyodbc.ProgrammingError) or isinstance(e, pyodbc.OperationalError):
-                app.logger.error(f"Error: {e.args[0]}")
+                app.logger.error(f"{e.args[1]}")
                 if e.args[0] == "08S01":
                     # If there is a "Communication Link Failure" error, 
                     # then connection must be removed
                     # as it will be in an invalid state
                     self.__removeConnection() 
                     raise                        
-
+        finally:
+            cursor.close()
+                         
         return result
 
 class Queryable(Resource):
