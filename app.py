@@ -16,11 +16,12 @@ import logging
 app = Flask(__name__)
 
 # Setup Azure Monitor
-# middleware = FlaskMiddleware(
-#     app,
-#     exporter=AzureExporter(connection_string="InstrumentationKey={0}".format(os.environ['APPINSIGHTS_KEY'])),
-#     sampler=ProbabilitySampler(rate=1.0),
-# )
+if 'APPINSIGHTS_KEY' in os.environ:
+    middleware = FlaskMiddleware(
+        app,
+        exporter=AzureExporter(connection_string="InstrumentationKey={0}".format(os.environ['APPINSIGHTS_KEY'])),
+        sampler=ProbabilitySampler(rate=1.0),
+    )
 
 # Setup Flask Restful framework
 api = Api(app)
