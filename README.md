@@ -170,6 +170,12 @@ As per best practices, code implement a retry logic to make sure connections to 
 
 The sample uses the [Tenacity](https://tenacity.readthedocs.io/en/latest/) library to implement a simple retry-logic in case the error "Communication link failure" happens (see [ODBC Error Codes](https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/appendix-a-odbc-error-codes))
 
+To test connection resiliency you can using testing tools like [Locust.io](https://locust.io/), [K6](https://k6.io/) or [Apache JMeter](https://jmeter.apache.org/). IF you want something really simple to try right away, a while loop will do. For example:
+
+```bash
+while :; do curl -s -X GET http://localhost:5000/customer/123; sleep 1; done
+```
+
 ## Learn more
 
 If you're new to Python and want to learn more, there is a full free Python curse here:
