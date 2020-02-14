@@ -23,6 +23,12 @@ if 'APPINSIGHTS_KEY' in os.environ:
         sampler=ProbabilitySampler(rate=1.0),
     )
 
+# Get Pool Size
+if 'POOL_SIZE' in os.environ:
+    pool_size = int(os.environ['POOL_SIZE'])
+else:
+    pool_size = 10
+
 # Setup Flask Restful framework
 api = Api(app)
 parser = reqparse.RequestParser()
@@ -76,7 +82,7 @@ class ConnectionManager(object):
     def __getConnection(self):
         self.__lock.acquire()
         idx = self.__conn_index + 1        
-        if idx > 9: idx = 0                              
+        if idx > pool_size: idx = 1                              
         self.__conn_index = idx
         self.__lock.release()                
 
