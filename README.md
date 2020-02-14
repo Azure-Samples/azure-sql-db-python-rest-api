@@ -125,6 +125,17 @@ Check out more samples to test all implemented verbs here:
 
 [cUrl Samples](./sample-usage.md)
 
+## Debug from Visual Studio Code
+
+Debugging from Visual Studio Code is fully supported. Make sure you create an `.env` file the look like the following one (making sure you add your connection string)
+
+```
+FLASK_ENV="development"
+SQLAZURECONNSTR_WWIF=""
+```
+
+and you'll be good to go.
+
 ## Deploy to Azure
 
 Now that your REST API solution is ready, it's time to deploy it on Azure so that anyone can take advantage of it. A detailed article on how you can that that is here:
@@ -152,6 +163,12 @@ Please note that connection string are accessible as environment variables from 
 https://docs.microsoft.com/en-us/azure/app-service/configure-common#connection-strings
 
 That's why the Python code in the sample look for `SQLAZURECONNSTR_WWIF` but the Shell script write the `WWIF` connection string name.
+
+## Connection Resiliency
+
+As per best practices, code implement a retry logic to make sure connections to Azure SQL are resilient and che nicely handle those cases in which the database may not be available. One of these case is when database is being scale up or down. This is usually a pretty fast operation (with Azure SQL Hyperscale it happens in something around 10 seconds), but still graceful management of connection is needed. 
+
+The sample uses the [Tenacity](https://tenacity.readthedocs.io/en/latest/) library to implement a simple retry-logic in case the error "Communication link failure" happens (see [ODBC Error Codes](https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/appendix-a-odbc-error-codes))
 
 ## Learn more
 
