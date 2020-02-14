@@ -28,7 +28,7 @@ api = Api(app)
 parser = reqparse.RequestParser()
 parser.add_argument('customer')
 
-# Implement manual round-robin connection pooling
+# Implement singleton to avoid global objects
 class ConnectionManager(object):    
     __instance = None
     __connection = None
@@ -122,7 +122,6 @@ class Customers(Queryable):
     def get(self):     
         result = self.executeQueryJson("get")   
         return result, 200
-    
     
 # Create API routes
 api.add_resource(Customer, '/customer', '/customer/<customer_id>')
