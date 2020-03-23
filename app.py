@@ -49,7 +49,7 @@ class ConnectionManager(object):
     def __removeConnection(self):
         self.__connection = None
 
-    @retry(stop=stop_after_attempt(3), wait=wait_fixed(10), retry=retry_if_exception_type(pyodbc.Error), after=after_log(app.logger, logging.DEBUG))
+    @retry(stop=stop_after_attempt(3), wait=wait_fixed(10), retry=retry_if_exception_type(pyodbc.OperationalError), after=after_log(app.logger, logging.DEBUG))
     def executeQueryJSON(self, procedure, payload=None):
         result = {}  
         try:
@@ -70,15 +70,14 @@ class ConnectionManager(object):
                 result = {}
 
             cursor.commit()    
-        except pyodbc.Error as e:            
-            if isinstance(e, pyodbc.ProgrammingError) or isinstance(e, pyodbc.OperationalError):
-                app.logger.error(f"{e.args[1]}")
-                if e.args[0] == "08S01":
-                    # If there is a "Communication Link Failure" error, 
-                    # then connection must be removed
-                    # as it will be in an invalid state
-                    self.__removeConnection() 
-                    raise                        
+        except pyodbc.OperationalError as e:            
+            app.logger.error(f"{e.args[1]}")
+            if e.args[0] == "08S01":
+                # If there is a "Communication Link Failure" error, 
+                # then connection must be removed
+                # as it will be in an invalid state
+                self.__removeConnection() 
+                raise                        
         finally:
             cursor.close()
                          
