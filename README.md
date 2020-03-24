@@ -178,6 +178,14 @@ To test connection resiliency you can using testing tools like [Locust.io](https
 while :; do curl -s -X GET http://localhost:5000/customer/$((RANDOM % 1000)); sleep 1; done
 ```
 
+## PyODBC, Linux and Connection Pooling
+
+To get the best performances, Connection Pooling should be used so that each time the code tries to open and close a connection, it can just take an existing connection from the pool, reset it, and use that one. Using a connection from the pool is way less expensive than creating a new connection, so by using connection pooling performance can be greatly improved.
+
+Unfortunately as of today (March 2020) ODBC connection pooling in Linux does work as expected to due an issue in unixODBC library. To work around that, I had to implement a manual technique to pool connection, that you can find in the `ConnectionManager` class.
+
+Once the issue will be fixed, or if you are using Windows, you can completely remove that part of the code, and just open and close the connection as you would do normally, as connection pooling will be used automatically behind the scenes.
+
 ## Learn more
 
 If you're new to Python and want to learn more, there is a full free Python curse here:
