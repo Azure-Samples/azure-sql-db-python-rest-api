@@ -8,6 +8,8 @@ products:
 - azure
 - vs-code
 - azure-sql-database
+- azure-app-service
+- azure-app-service-web
 description: "Creating a modern REST API with Python and Azure SQL, using Flask and Visual Studio Code"
 urlFragment: "azure-sql-db-python-rest-api"
 ---
