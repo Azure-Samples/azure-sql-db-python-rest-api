@@ -4,6 +4,7 @@ languages:
 - python
 - tsql
 - sql
+- json
 products:
 - azure
 - vs-code
@@ -15,6 +16,8 @@ urlFragment: "azure-sql-db-python-rest-api"
 ---
 
 # Creating a REST API with Python and Azure SQL
+
+![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 <!-- 
 Guidelines on README format: https://review.docs.microsoft.com/help/onboard/admin/samples/concepts/readme-template?branch=master
