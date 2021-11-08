@@ -193,7 +193,7 @@ Once the issue will be fixed, or if you are using Windows, you can completely re
 
 ## Learn more
 
-If you're new to Python and want to learn more, there is a full free Python curse here:
+If you're new to Python and want to learn more, there is a full free Python course here:
 
 - [Python for Beginners - Videos](https://aka.ms/python-for-beginners)
 - [Python for Beginners - GitHub Repo](https://github.com/microsoft/c9-python-getting-started)
